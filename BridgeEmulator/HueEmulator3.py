@@ -60,21 +60,21 @@ if args.debug or (os.getenv('DEBUG') and (os.getenv('DEBUG') == "true" or os.get
     root.addHandler(ch)
 
 if args.ip:
-    HOST_IP = args.ip
+    pass
 elif os.getenv('IP'):
-    HOST_IP = os.getenv('IP')
+    args.ip = os.getenv('IP')
 else:
-    HOST_IP = getIpAddress()
+    args.ip = getIpAddress()
 
 if args.http_port:
-    HOST_HTTP_PORT = args.http_port
+    pass
 elif os.getenv('HTTP_PORT'):
-    HOST_HTTP_PORT = os.getenv('HTTP_PORT')
+    args.http_port = os.getenv('HTTP_PORT')
 else:
-    HOST_HTTP_PORT = 80
-HOST_HTTPS_PORT = 443 # Hardcoded for now
+    args.http_port = 80
+args.https_port = 443 # Hardcoded for now
 
-logging.info("Using Host %s:%s" % (HOST_IP, HOST_HTTP_PORT))
+logging.info("Using Host %s:%s" % (args.ip, args.http_port))
 
 if args.mac:
     dockerMAC = args.mac
@@ -85,8 +85,8 @@ elif os.getenv('MAC'):
     mac = str(dockerMAC).replace(":","")
     print("Host MAC given as " + mac)
 else:
-    dockerMAC = check_output("cat /sys/class/net/$(ip -o addr | grep %s | awk '{print $2}')/address" % HOST_IP, shell=True).decode('utf-8')[:-1]
-    mac = check_output("cat /sys/class/net/$(ip -o addr | grep %s | awk '{print $2}')/address" % HOST_IP, shell=True).decode('utf-8').replace(":","")[:-1]
+    dockerMAC = check_output("cat /sys/class/net/$(ip -o addr | grep %s | awk '{print $2}')/address" % args.ip, shell=True).decode('utf-8')[:-1]
+    mac = check_output("cat /sys/class/net/$(ip -o addr | grep %s | awk '{print $2}')/address" % args.ip, shell=True).decode('utf-8').replace(":","")[:-1]
 logging.info(mac)
 
 if args.docker or (os.getenv('DOCKER') and os.getenv('DOCKER') == "true"):
@@ -104,29 +104,29 @@ else:
 if args.ip_range:
     ranges = args.ip_range.split(',')
     if ranges[0] and int(ranges[0]) >= 0:
-        ip_range_start = int(ranges[0])
+        args.ip_range_start = int(ranges[0])
     else:
-        ip_range_start = 0
+        args.ip_range_start = 0
 
     if ranges[1] and int(ranges[1]) > 0:
-        ip_range_end = int(ranges[1])
+        args.ip_range_end = int(ranges[1])
     else:
-        ip_range_end = 255
+        args.ip_range_end = 255
 elif os.getenv('IP_RANGE'):
     ranges = os.getenv('IP_RANGE').split(',')
     if ranges[0] and int(ranges[0]) >= 0:
-        ip_range_start = int(ranges[0])
+        args.ip_range_start = int(ranges[0])
     else:
-        ip_range_start = 0
+        args.ip_range_start = 0
 
     if ranges[1] and int(ranges[1]) > 0:
-        ip_range_end = int(ranges[1])
+        args.ip_range_end = int(ranges[1])
     else:
-        ip_range_end = 255
+        args.ip_range_end = 255
 else:
-    ip_range_start = os.getenv('IP_RANGE_START', 0)
-    ip_range_end = os.getenv('IP_RANGE_END', 255)
-logging.info("IP range for light discovery: "+str(ip_range_start)+"-"+str(ip_range_end))
+    args.ip_range_start = os.getenv('IP_RANGE_START', 0)
+    args.ip_range_end = os.getenv('IP_RANGE_END', 255)
+logging.info("IP range for light discovery: "+str(args.ip_range_start)+"-"+str(args.ip_range_end))
 
 if args.deconz:
   deconz_ip = args.deconz
@@ -167,8 +167,8 @@ def initialize():
         logging.exception("CRITICAL! Config file was not loaded")
         sys.exit(1)
 
-    ip_pices = HOST_IP.split(".")
-    bridge_config["config"]["ipaddress"] = HOST_IP
+    ip_pices = args.ip.split(".")
+    bridge_config["config"]["ipaddress"] = args.ip
     bridge_config["config"]["gateway"] = ip_pices[0] + "." +  ip_pices[1] + "." + ip_pices[2] + ".1"
     bridge_config["config"]["mac"] = mac[0] + mac[1] + ":" + mac[2] + mac[3] + ":" + mac[4] + mac[5] + ":" + mac[6] + mac[7] + ":" + mac[8] + mac[9] + ":" + mac[10] + mac[11]
     bridge_config["config"]["bridgeid"] = (mac[:6] + 'FFFE' + mac[6:]).upper()
@@ -578,14 +578,14 @@ def scanHost(host, port):
     return result
 
 def iter_ips(port):
-    host = HOST_IP.split('.')
+    host = args.ip.split('.')
     if args.scan_on_host_ip:
         yield ('127.0.0.1', port)
         return
     for addr in range(ip_range_start, ip_range_end + 1):
         host[3] = str(addr)
         test_host = '%s.%s.%s.%s' % (*host,)
-        if test_host != HOST_IP:
+        if test_host != args.ip:
             yield (test_host, port)
 
 def find_hosts(port):
@@ -1676,7 +1676,7 @@ class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
 
 def run(https, server_class=ThreadingSimpleServer, handler_class=S):
     if https:
-        server_address = ('', HOST_HTTPS_PORT)
+        server_address = ('', args.https_port)
         httpd = server_class(server_address, handler_class)
         ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ctx.load_cert_chain(certfile="./cert.pem")
@@ -1689,7 +1689,7 @@ def run(https, server_class=ThreadingSimpleServer, handler_class=S):
         httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
         logging.info('Starting ssl httpd...')
     else:
-        server_address = ('', HOST_HTTP_PORT)
+        server_address = ('', args.http_port)
         httpd = server_class(server_address, handler_class)
         logging.info('Starting httpd...')
     httpd.serve_forever()
@@ -1704,8 +1704,8 @@ if __name__ == "__main__":
     try:
         if update_lights_on_startup:
             Thread(target=updateAllLights).start()
-        Thread(target=ssdpSearch, args=[HOST_IP, mac]).start()
-        Thread(target=ssdpBroadcast, args=[HOST_IP, mac]).start()
+        Thread(target=ssdpSearch, args=[args.ip, mac]).start()
+        Thread(target=ssdpBroadcast, args=[args.ip, mac]).start()
         Thread(target=schedulerProcessor).start()
         Thread(target=syncWithLights, args=[bridge_config["lights"], bridge_config["lights_address"], bridge_config["config"]["whitelist"], bridge_config["groups"]]).start()
         Thread(target=entertainmentService, args=[bridge_config["lights"], bridge_config["lights_address"], bridge_config["groups"]]).start()
