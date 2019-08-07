@@ -47,6 +47,7 @@ ap.add_argument("--ip-range", help="Set IP range for light discovery. Format: <S
 ap.add_argument("--scan-on-host-ip", action='store_true', help="Scan the local IP address when discovering new lights")
 ap.add_argument("--deconz", help="Provide the IP address of your Deconz host. 127.0.0.1 by default.", type=str)
 ap.add_argument("--no-link-button", action='store_true', help="DANGEROUS! Don't require the link button to be pressed to pair the Hue app, just allow any app to connect")
+ap.add_argument("--config-dir", help="The directory to store config.json and backups in", type=str)
 
 args = ap.parse_args()
 
@@ -141,8 +142,8 @@ logging.info(deconz_ip)
 protocols = [yeelight, tasmota, native_single, native_multi]
 
 cwd = os.path.split(os.path.abspath(__file__))[0]
-
-
+if not args.config_dir:
+    args.config_dir = cwd
 
 run_service = True
 
@@ -152,7 +153,7 @@ def initialize():
     sensors_state = {}
 
     try:
-        path = cwd + '/config.json'
+        path = args.config_dir + '/config.json'
         if os.path.exists(path):
             bridge_config = load_config(path)
             logging.info("Config loaded")
@@ -356,10 +357,12 @@ def load_alarm_config():  #load and configure alarm virtual light
                 logging.info("Mail test failed")
 
 def saveConfig(filename='config.json'):
-    with open(cwd + '/' + filename, 'w', encoding="utf-8") as fp:
+    path = args.config_dir + '/' + filename
+    with open(path, 'w', encoding="utf-8") as fp:
         json.dump(bridge_config, fp, sort_keys=True, indent=4, separators=(',', ': '))
     if docker:
-        Popen(["cp", cwd + '/' + filename, cwd + '/' + 'export/'])
+        Popen(["cp", path, cwd + '/' + 'export/'])
+    return path
 
 def generateSensorsState():
     for sensor in bridge_config["sensors"]:
@@ -408,10 +411,7 @@ def schedulerProcessor():
             saveConfig()
             Thread(target=daylightSensor).start()
             if (datetime.now().strftime("%H") == "23" and datetime.now().strftime("%A") == "Sunday"): #backup config every Sunday at 23:00:10
-                if docker:
-                    saveConfig("export/config-backup-" + datetime.now().strftime("%Y-%m-%d") + ".json")
-                else:
-                    saveConfig("config-backup-" + datetime.now().strftime("%Y-%m-%d") + ".json")
+                saveConfig("config-backup-" + datetime.now().strftime("%Y-%m-%d") + ".json")
         sleep(1)
 
 def switchScene(group, direction):
@@ -1042,10 +1042,10 @@ class S(BaseHTTPRequestHandler):
             self._set_end_headers(f.read())
         elif self.path == "/factory-reset":
             self._set_headers()
-            saveConfig('before-reset.json')
+            backup_path = saveConfig('before-reset.json')
             bridge_config = load_config(cwd + '/default-config.json')
             saveConfig()
-            self._set_end_headers(bytes(json.dumps([{"success":{"configuration":"reset","backup-filename":"/opt/hue-emulator/before-reset.json"}}] ,separators=(',', ':'),ensure_ascii=False), "utf8"))
+            self._set_end_headers(bytes(json.dumps([{"success":{"configuration":"reset","backup-filename":backup_path}}] ,separators=(',', ':'),ensure_ascii=False), "utf8"))
         elif self.path == '/config.js':
             self._set_headers()
             #create a new user key in case none is available
@@ -1071,8 +1071,8 @@ class S(BaseHTTPRequestHandler):
 
         elif self.path == '/save':
             self._set_headers()
-            saveConfig()
-            self._set_end_headers(bytes(json.dumps([{"success":{"configuration":"saved","filename":"/opt/hue-emulator/config.json"}}] ,separators=(',', ':'),ensure_ascii=False), "utf8"))
+            save_path = saveConfig()
+            self._set_end_headers(bytes(json.dumps([{"success":{"configuration":"saved","filename": save_path}}] ,separators=(',', ':'),ensure_ascii=False), "utf8"))
         elif self.path.startswith("/tradfri"): #setup Tradfri gateway
             self._set_headers()
             get_parameters = parse_qs(urlparse(self.path).query)
