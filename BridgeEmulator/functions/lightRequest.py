@@ -15,6 +15,7 @@ def sendLightRequest(light, data, lights, addresses):
             if "protocols." + protocol_name == protocol.__name__:
                 try:
                     light_state = protocol.set_light(addresses[light], lights[light], data)
+                    lights[light]["state"]["reachable"] = True
                 except Exception as e:
                     lights[light]["state"]["reachable"] = False
                     logging.warning("light not reachable: %s", e)
@@ -173,9 +174,9 @@ def sendLightRequest(light, data, lights, addresses):
                     sendRequest(url, method, json.dumps(color))
             else:
                 sendRequest(url, method, json.dumps(payload))
-        except:
+        except Exception:
             lights[light]["state"]["reachable"] = False
-            logging.info("request error")
+            logging.exception("request error")
         else:
             lights[light]["state"]["reachable"] = True
             logging.info("LightRequest: " + url)
@@ -189,12 +190,9 @@ def syncWithLights(lights, addresses, users, groups): #update Hue Bridge lights 
                 protocol_name = addresses[light]["protocol"]
                 for protocol in protocols:
                     if "protocols." + protocol_name == protocol.__name__:
-                        try:
-                            light_state = protocol.get_light_state(addresses[light], lights[light])
-                            lights[light]["state"].update(light_state)
-                        except Exception as e:
-                            lights[light]["state"]["reachable"] = False
-                            logging.warning("light not reachable: %s", e)
+                        light_state = protocol.get_light_state(addresses[light], lights[light])
+                        lights[light]["state"].update(light_state)
+                        break
 
                 if addresses[light]["protocol"] == "native":
                     light_data = json.loads(sendRequest("http://" + addresses[light]["ip"] + "/get?light=" + str(addresses[light]["light_nr"]), "GET", "{}"))
@@ -250,7 +248,7 @@ def syncWithLights(lights, addresses, users, groups): #update Hue Bridge lights 
 
                 lights[light]["state"]["reachable"] = True
                 updateGroupStats(light, lights, groups)
-            except:
+            except Exception:
                 lights[light]["state"]["reachable"] = False
                 lights[light]["state"]["on"] = False
                 logging.exception("light " + light + " is unreachable")
