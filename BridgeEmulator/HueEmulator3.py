@@ -9,7 +9,11 @@ import random
 import socket
 import ssl
 import sys
+import threading
+
+import flask
 import requests
+
 from collections import defaultdict
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -1000,14 +1004,16 @@ def daylightSensor():
         sensors_state["1"]["state"]["daylight"] = current_time
         rulesProcessor("1", current_time)
 
-
-class S(BaseHTTPRequestHandler):
+class S:
     protocol_version = 'HTTP/1.1'
     server_version = 'nginx'
     sys_version = ''
 
+    def send_header(self, header, value):
+        self.resp_headers[header] = value
+
     def _set_headers(self):
-        self.send_response(200)
+        self.resp_status_code = 200
         mimetypes = {"json": "application/json", "map": "application/json", "html": "text/html", "xml": "application/xml", "js": "text/javascript", "css": "text/css", "png": "image/png"}
         if self.path.endswith((".html",".json",".css",".map",".png",".js", ".xml")):
             self.send_header('Content-type', mimetypes[self.path.split(".")[-1]])
@@ -1017,14 +1023,12 @@ class S(BaseHTTPRequestHandler):
             self.send_header('Content-type', mimetypes["html"])
 
     def _set_AUTHHEAD(self):
-        self.send_response(401)
+        self.resp_status_code = 401
         self.send_header('WWW-Authenticate', 'Basic realm=\"Hue\"')
         self.send_header('Content-type', 'text/html')
 
     def _set_end_headers(self, data):
-        self.send_header('Content-Length', len(data))
-        self.end_headers()
-        self.wfile.write(data)
+        self.resp_body = data
 
     def do_GET(self):
         #Some older Philips Tv's sent non-standard HTTP GET requests with a Content-Lenght and a
@@ -1274,7 +1278,7 @@ class S(BaseHTTPRequestHandler):
             url_pices = self.path.rstrip('/').split('/')
             if len(url_pices) < 3:
                 #self._set_headers_error()
-                self.send_error(404, 'not found')
+                self.response = ('not found: %s' % self.path, 404)
                 return
             else:
                 self._set_headers()
@@ -1304,6 +1308,9 @@ class S(BaseHTTPRequestHandler):
                     elif url_pices[3] == "info" and url_pices[4] == "timezones":
                         self._set_end_headers(bytes(json.dumps(bridge_config["capabilities"][url_pices[4]]["values"],separators=(',', ':'),ensure_ascii=False), "utf8"),ensure_ascii=False)
                     else:
+                        if url_pices[4] not in bridge_config[url_pices[3]]:
+                            self.response = ('not found: %s' % self.path, 404)
+                            return
                         self._set_end_headers(bytes(json.dumps(bridge_config[url_pices[3]][url_pices[4]],separators=(',', ':'),ensure_ascii=False), "utf8"))
             elif (url_pices[2] == "nouser" or url_pices[2] == "none" or url_pices[2] == "config"): #used by applications to discover the bridge
                 self._set_end_headers(bytes(json.dumps({"name": bridge_config["config"]["name"],"datastoreversion": 70, "swversion": bridge_config["config"]["swversion"], "apiversion": bridge_config["config"]["apiversion"], "mac": bridge_config["config"]["mac"], "bridgeid": bridge_config["config"]["bridgeid"], "factorynew": False, "replacesbridgeid": None, "modelid": bridge_config["config"]["modelid"],"starterkitid":""},separators=(',', ':'),ensure_ascii=False), "utf8"))
@@ -1311,8 +1318,9 @@ class S(BaseHTTPRequestHandler):
                 self._set_end_headers(bytes(json.dumps([{"error": {"type": 1, "address": self.path, "description": "unauthorized user" }}],separators=(',', ':'),ensure_ascii=False), "utf8"))
 
     def read_http_request_body(self):
-        return b"{}" if self.headers['Content-Length'] is None or self.headers[
-            'Content-Length'] == '0' else self.rfile.read(int(self.headers['Content-Length']))
+        if self.headers.get('Content-Length') is None or self.headers['Content-Length'] == '0':
+            return b"{}" 
+        return flask.request.get_data()
 
     def do_POST(self):
         self._set_headers()
@@ -1399,7 +1407,7 @@ class S(BaseHTTPRequestHandler):
     def do_PUT(self):
         self._set_headers()
         logging.info("in PUT method")
-        self.data_string = self.rfile.read(int(self.headers['Content-Length']))
+        self.data_string = self.read_http_request_body()
         put_dictionary = json.loads(self.data_string.decode('utf8'))
         url_pices = self.path.rstrip('/').split('/')
         logging.info(self.path)
@@ -1576,13 +1584,40 @@ class S(BaseHTTPRequestHandler):
                         del bridge_config["deconz"]["sensors"][sensor]
             self._set_end_headers(bytes(json.dumps([{"success": "/" + url_pices[3] + "/" + url_pices[4] + " deleted."}],separators=(',', ':'),ensure_ascii=False), "utf8"))
 
+app = flask.Flask(__name__, static_folder=None)
+
+@app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE'])
+@app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def route_all_paths(path):
+    # Set up local variables in the handler class to match BaseHTTPRequestHandler
+    s = S()
+    s.path = '/' + path
+    s.headers = flask.request.headers
+    s.resp_body = None
+    s.resp_status_code = None
+    s.resp_headers = {}
+    s.response = None
+
+    # Call out the appropriate method depending on HTTP method
+    if flask.request.method == 'GET':
+        s.do_GET()
+    elif flask.request.method == 'POST':
+        s.do_POST()
+    elif flask.request.method == 'PUT':
+        s.do_PUT()
+    elif flask.request.method == 'DELETE':
+        s.do_DELETE()
+
+    if s.response is None:
+        s.response = (s.resp_body, s.resp_status_code, s.resp_headers)
+    return s.response
+
 class ThreadingSimpleServer(ThreadingMixIn, HTTPServer):
     pass
 
-def run(https, server_class=ThreadingSimpleServer, handler_class=S):
+def run(https):
     if https:
-        server_address = ('', args.https_port)
-        httpd = server_class(server_address, handler_class)
+        port = args.https_port
         ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ctx.load_cert_chain(certfile="./cert.pem")
         ctx.options |= ssl.OP_NO_TLSv1
@@ -1591,14 +1626,13 @@ def run(https, server_class=ThreadingSimpleServer, handler_class=S):
         ctx.set_ciphers('ECDHE-ECDSA-AES128-GCM-SHA256')
         ctx.set_ecdh_curve('prime256v1')
         #ctx.set_alpn_protocols(['h2', 'http/1.1'])
-        httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
         logging.info('Starting ssl httpd...')
     else:
-        server_address = ('', args.http_port)
-        httpd = server_class(server_address, handler_class)
+        port = args.http_port
+        ctx = None
         logging.info('Starting httpd...')
-    httpd.serve_forever()
-    httpd.server_close()
+
+    app.run(debug=False, port=port, ssl_context=ctx)
 
 if __name__ == "__main__":
     initialize()
