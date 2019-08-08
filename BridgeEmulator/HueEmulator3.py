@@ -149,6 +149,11 @@ cwd = os.path.split(os.path.abspath(__file__))[0]
 if not args.config_dir:
     args.config_dir = cwd
 
+# Flask setup
+WEBUI_FOLDER = '%s/web-ui/' % cwd
+logging.warning(WEBUI_FOLDER)
+app = flask.Flask(__name__, static_folder='%s/static' % WEBUI_FOLDER, static_url_path='/static/')
+
 run_service = True
 
 def initialize():
@@ -1004,6 +1009,39 @@ def daylightSensor():
         sensors_state["1"]["state"]["daylight"] = current_time
         rulesProcessor("1", current_time)
 
+def get_timestamp():
+    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+@app.route('/')
+@app.route('/index.html')
+@app.route('/<path:path>.css', defaults={'ext': '.css'})
+@app.route('/<path:path>.map', defaults={'ext': '.map'})
+@app.route('/<path:path>.png', defaults={'ext': '.png'})
+@app.route('/<path:path>.js', defaults={'ext': '.js'})
+def get_static_file(path='index.html', ext=''):
+    path = path + ext
+    return flask.send_from_directory(WEBUI_FOLDER, path)
+
+@app.route('/config.js')
+def get_config_js(path='index.html', ext=''):
+    #create a new user key in case none is available
+    if len(bridge_config["config"]["whitelist"]) == 0:
+        timestamp = get_timestamp()
+        user = {
+            "create date": timestamp,
+            "last use date": timestamp,
+            "name": "WebGui User"
+        }
+        bridge_config["config"]["whitelist"]["web-ui-" + str(random.randrange(0, 99999))] = user
+    # XXX We're sending out random API keys here?? Does it matter?
+    config = list(bridge_config["config"]["whitelist"].keys())[0]
+    resp = 'window.config = { API_KEY: "%s",};' % config
+    return resp.encode('utf-8')
+
+@app.route('/debug/clip.html')
+def get_debug_clip():
+    return flask.send_file('%s/debug/clip.html' % cwd)
+
 class S:
     protocol_version = 'HTTP/1.1'
     server_version = 'nginx'
@@ -1036,30 +1074,12 @@ class S:
         global bridge_config
         self.read_http_request_body()
 
-        if self.path == '/' or self.path == '/index.html':
-            self._set_headers()
-            f = open(cwd + '/web-ui/index.html')
-            self._set_end_headers(bytes(f.read(), "utf8"))
-        elif self.path == "/debug/clip.html":
-            self._set_headers()
-            f = open(cwd + '/clip.html', 'rb')
-            self._set_end_headers(f.read())
-        elif self.path == "/factory-reset":
+        if self.path == "/factory-reset":
             self._set_headers()
             backup_path = saveConfig('before-reset.json')
             bridge_config = load_config(cwd + '/default-config.json')
             saveConfig()
             self._set_end_headers(bytes(json.dumps([{"success":{"configuration":"reset","backup-filename":backup_path}}] ,separators=(',', ':'),ensure_ascii=False), "utf8"))
-        elif self.path == '/config.js':
-            self._set_headers()
-            #create a new user key in case none is available
-            if len(bridge_config["config"]["whitelist"]) == 0:
-                bridge_config["config"]["whitelist"]["web-ui-" + str(random.randrange(0, 99999))] = {"create date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),"last use date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),"name": "WegGui User"}
-            self._set_end_headers(bytes('window.config = { API_KEY: "' + list(bridge_config["config"]["whitelist"])[0] + '",};', "utf8"))
-        elif self.path.endswith((".css",".map",".png",".js")):
-            self._set_headers()
-            f = open(cwd + '/web-ui' + self.path, 'rb')
-            self._set_end_headers(f.read())
         elif self.path == '/description.xml':
             self._set_headers()
             self._set_end_headers(bytes(description(bridge_config["config"]["ipaddress"], mac, bridge_config["config"]["name"]), "utf8"))
@@ -1584,11 +1604,8 @@ class S:
                         del bridge_config["deconz"]["sensors"][sensor]
             self._set_end_headers(bytes(json.dumps([{"success": "/" + url_pices[3] + "/" + url_pices[4] + " deleted."}],separators=(',', ':'),ensure_ascii=False), "utf8"))
 
-app = flask.Flask(__name__, static_folder=None)
-
-@app.route('/', defaults={'path': ''}, methods=['GET', 'POST', 'PUT', 'DELETE'])
 @app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
-def route_all_paths(path):
+def route_all_paths(path=''):
     # Set up local variables in the handler class to match BaseHTTPRequestHandler
     s = S()
     s.path = '/' + path
