@@ -1012,6 +1012,11 @@ def daylightSensor():
 def get_timestamp():
     return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
+# Get query string as a dict. Ignores duplicate keys!
+def get_query_string():
+    query = parse_qs(flask.request.query_string.decode('ascii'))
+    return {k: v[0] for k, v in query.items()}
+
 @app.route('/')
 @app.route('/index.html')
 @app.route('/<path:path>.css', defaults={'ext': '.css'})
@@ -1041,6 +1046,35 @@ def get_config_js(path='index.html', ext=''):
 @app.route('/debug/clip.html')
 def get_debug_clip():
     return flask.send_file('%s/debug/clip.html' % cwd)
+
+@app.route('/factory-reset')
+def factory_reset():
+    backup_path = saveConfig('before-reset.json')
+    bridge_config = load_config(cwd + '/default-config.json')
+    saveConfig()
+    return flask.jsonify([{"success":{"configuration":"reset","backup-filename":backup_path}}])
+
+@app.route('/description.xml')
+def get_description_xml():
+    headers = {'Content-Type': 'application/xml'}
+    resp = description(bridge_config["config"]["ipaddress"], mac, bridge_config["config"]["name"])
+    return (resp, headers)
+
+@app.route('/lights.json')
+def get_lights_json():
+    return flask.jsonify(getLightsVersions())
+
+@app.route('/lights')
+def get_lights():
+    get_parameters = get_query_string()
+    if "light" in get_parameters:
+        updateLight(get_parameters["light"], get_parameters["filename"])
+    return lightsHttp()
+
+@app.route('/save')
+def save():
+    save_path = saveConfig()
+    return flask.jsonify([{"success":{"configuration":"saved","filename": save_path}}])
 
 class S:
     protocol_version = 'HTTP/1.1'
@@ -1074,30 +1108,7 @@ class S:
         global bridge_config
         self.read_http_request_body()
 
-        if self.path == "/factory-reset":
-            self._set_headers()
-            backup_path = saveConfig('before-reset.json')
-            bridge_config = load_config(cwd + '/default-config.json')
-            saveConfig()
-            self._set_end_headers(bytes(json.dumps([{"success":{"configuration":"reset","backup-filename":backup_path}}] ,separators=(',', ':'),ensure_ascii=False), "utf8"))
-        elif self.path == '/description.xml':
-            self._set_headers()
-            self._set_end_headers(bytes(description(bridge_config["config"]["ipaddress"], mac, bridge_config["config"]["name"]), "utf8"))
-        elif self.path == "/lights.json":
-            self._set_headers()
-            self._set_end_headers(bytes(json.dumps(getLightsVersions() ,separators=(',', ':'),ensure_ascii=False), "utf8"))
-        elif self.path.startswith("/lights"):
-            self._set_headers()
-            get_parameters = parse_qs(urlparse(self.path).query)
-            if "light" in get_parameters:
-                updateLight(get_parameters["light"][0], get_parameters["filename"][0])
-            self._set_end_headers(bytes(lightsHttp(), "utf8"))
-
-        elif self.path == '/save':
-            self._set_headers()
-            save_path = saveConfig()
-            self._set_end_headers(bytes(json.dumps([{"success":{"configuration":"saved","filename": save_path}}] ,separators=(',', ':'),ensure_ascii=False), "utf8"))
-        elif self.path.startswith("/tradfri"): #setup Tradfri gateway
+        if self.path.startswith("/tradfri"): #setup Tradfri gateway
             self._set_headers()
             get_parameters = parse_qs(urlparse(self.path).query)
             if "code" in get_parameters:
