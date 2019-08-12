@@ -1017,6 +1017,8 @@ def get_query_string():
     query = parse_qs(flask.request.query_string.decode('ascii'))
     return {k: v[0] for k, v in query.items()}
 
+MIME_TYPES = {"json": "application/json", "map": "application/json", "html": "text/html", "xml": "application/xml", "js": "text/javascript", "css": "text/css", "png": "image/png"}
+
 @app.route('/')
 @app.route('/index.html')
 @app.route('/<path:path>.css', defaults={'ext': '.css'})
@@ -1041,7 +1043,10 @@ def get_config_js(path='index.html', ext=''):
     # XXX We're sending out random API keys here?? Does it matter?
     config = list(bridge_config["config"]["whitelist"].keys())[0]
     resp = 'window.config = { API_KEY: "%s",};' % config
-    return resp.encode('utf-8')
+
+    headers = {'Content-Type': MIME_TYPES['js']}
+
+    return (resp.encode('utf-8'), headers)
 
 @app.route('/debug/clip.html')
 def get_debug_clip():
@@ -1056,7 +1061,7 @@ def factory_reset():
 
 @app.route('/description.xml')
 def get_description_xml():
-    headers = {'Content-Type': 'application/xml'}
+    headers = {'Content-Type': MIME_TYPES['xml']}
     resp = description(bridge_config["config"]["ipaddress"], mac, bridge_config["config"]["name"])
     return (resp, headers)
 
@@ -1086,13 +1091,12 @@ class S:
 
     def _set_headers(self):
         self.resp_status_code = 200
-        mimetypes = {"json": "application/json", "map": "application/json", "html": "text/html", "xml": "application/xml", "js": "text/javascript", "css": "text/css", "png": "image/png"}
         if self.path.endswith((".html",".json",".css",".map",".png",".js", ".xml")):
-            self.send_header('Content-type', mimetypes[self.path.split(".")[-1]])
+            self.send_header('Content-type', MIME_TYPES[self.path.split(".")[-1]])
         elif self.path.startswith("/api"):
-            self.send_header('Content-type', mimetypes["json"])
+            self.send_header('Content-type', MIME_TYPES["json"])
         else:
-            self.send_header('Content-type', mimetypes["html"])
+            self.send_header('Content-type', MIME_TYPES["html"])
 
     def _set_AUTHHEAD(self):
         self.resp_status_code = 401
