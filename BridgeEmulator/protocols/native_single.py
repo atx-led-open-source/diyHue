@@ -58,25 +58,33 @@ def discover(args):
                 device_data = json.loads(response.text)
                 logging.info(pretty_json(device_data))
                 if "modelid" in device_data:
-                    logging.info(ip + " is " + device_data['name'])
+                    logging.info('%s is %s', ip, device_data.get('name'))
                     if "protocol" in device_data:
                         protocol = device_data["protocol"]
                     else:
                         protocol = "native"
 
                     # Get number of lights
-                    lights = 1
-                    if "lights" in device_data:
-                        lights = device_data["lights"]
+                    if "light_ids" in device_data:
+                        lights = device_data["light_ids"]
+                    else:
+                        n_lights = 1
+                        if "lights" in device_data:
+                            n_lights = device_data["lights"]
+                        lights = []
+                        for x in range(1, n_lights + 1):
+                            light_name = generate_light_name(device_data['name'], x)
+                            lights.append({'light_nr': x, 'name': light_name})
 
-                    for x in range(1, lights + 1):
-                        light_name = generate_light_name(device_data['name'], x)
+                    for item in lights:
+                        # Be sure to copy the default state so we're not sharing
+                        # any dictionaries between lights
                         default_state = copy.deepcopy(light_types[device_data["modelid"]])
 
                         light = {
                             "state": default_state["state"],
                             "type": default_state["type"],
-                            "name": light_name,
+                            "name": item['name'],
                             "uniqueid": generate_unique_id(),
                             "modelid": device_data["modelid"],
                             "manufacturername": "Philips",
@@ -84,15 +92,15 @@ def discover(args):
                         }
                         light_address = {
                             "ip": ip,
-                            "light_nr": x,
+                            "light_nr": item['light_nr'],
                             "protocol": protocol,
                             "mac": device_data["mac"],
                             "version": device_data.get("version"),
                             "type": device_data.get("type"),
-                            "name": device_data.get("name"),
+                            "name": item['name'],
                         }
                         yield (light, light_address)
 
         except Exception as e:
-            logging.info("ip %s is unknown device: %s", ip, e)
+            logging.exception("ip %s is unknown device", ip)
             #raise

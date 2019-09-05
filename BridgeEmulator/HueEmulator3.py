@@ -1508,6 +1508,10 @@ class S:
                         self._set_end_headers(bytes(json.dumps(response_dictionary,separators=(',', ':'),ensure_ascii=False), "utf8"))
                         logging.info(json.dumps(response_dictionary, sort_keys=True, indent=4, separators=(',', ': ')))
                         return
+                elif url_pices[3] == "lights" and "name" in put_dictionary:
+                    bridge_config[url_pices[3]][url_pices[4]].update(put_dictionary)
+                    light_dict = {'name': put_dictionary['name']}
+                    sendLightRequest(url_pices[4], light_dict, bridge_config["lights"], bridge_config["lights_address"])
                 else:
                     bridge_config[url_pices[3]][url_pices[4]].update(put_dictionary)
 

@@ -191,6 +191,9 @@ def syncWithLights(lights, addresses, users, groups): #update Hue Bridge lights 
                 for protocol in protocols:
                     if "protocols." + protocol_name == protocol.__name__:
                         light_state = protocol.get_light_state(addresses[light], lights[light])
+                        # Update name if needed
+                        if 'name' in light_state:
+                            lights[light]['name'] = light_state.pop('name')
                         lights[light]["state"].update(light_state)
                         break
 
