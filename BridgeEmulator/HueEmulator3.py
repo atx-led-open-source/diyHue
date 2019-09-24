@@ -225,6 +225,11 @@ def updateConfig():
             light_address["mac"] = light["uniqueid"][:17]
             light["uniqueid"] = generate_unique_id()
 
+        if light_address["protocol"] == "atx_led":
+            light_address['protocol'] = 'native_multi'
+            addr_type, addr_id = light_address['light_nr']
+            light_address['light_nr'] = '%s_%s' % (addr_type[0], addr_id)
+
         # Update deCONZ protocol lights
         if light_address["protocol"] == "deconz":
             # Delete old keys
