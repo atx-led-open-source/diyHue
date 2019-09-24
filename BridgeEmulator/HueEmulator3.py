@@ -1684,20 +1684,22 @@ if __name__ == "__main__":
     try:
         if update_lights_on_startup:
             Thread(target=updateAllLights).start()
-        Thread(target=ssdpSearch, args=[args.ip, mac]).start()
-        Thread(target=ssdpBroadcast, args=[args.ip, mac]).start()
-        Thread(target=schedulerProcessor).start()
+        #Thread(target=ssdpSearch, args=[args.ip, mac]).start()
+        #Thread(target=ssdpBroadcast, args=[args.ip, mac]).start()
+        #Thread(target=schedulerProcessor).start()
         Thread(target=syncWithLights, args=[bridge_config["lights"], bridge_config["lights_address"], bridge_config["config"]["whitelist"], bridge_config["groups"]]).start()
-        Thread(target=entertainmentService, args=[bridge_config["lights"], bridge_config["lights_address"], bridge_config["groups"]]).start()
-        Thread(target=run, args=[False]).start()
-        if not args.no_serve_https:
-            Thread(target=run, args=[True]).start()
-        Thread(target=daylightSensor).start()
-        while True:
-            sleep(10)
+        #Thread(target=entertainmentService, args=[bridge_config["lights"], bridge_config["lights_address"], bridge_config["groups"]]).start()
+        #Thread(target=run, args=[False]).start()
+        #if not args.no_serve_https:
+        #    Thread(target=run, args=[True]).start()
+        #Thread(target=daylightSensor).start()
+        run(False)
+        #while True:
+        #    sleep(10)
     except Exception:
         logging.exception("server stopped ")
     finally:
         run_service = False
         saveConfig()
         logging.info('config saved')
+        sys.exit(0)
