@@ -1053,6 +1053,15 @@ def get_config_js(path='index.html', ext=''):
 
     return (resp.encode('utf-8'), headers)
 
+@app.route('/api/nouser/config')
+def get_nouser_config():
+    keys = ['apiversion', 'bridgeid', 'datastoreversion', 'mac',
+        'modelid', 'name', 'swversion']
+    data = {key: bridge_config['config'][key] for key in keys}
+    data.update({'factorynew': False, 'replacesbridgeid': None,
+        'starterkitid': ''})
+    return flask.jsonify(data)
+
 @app.route('/debug/clip.html')
 def get_debug_clip():
     return flask.send_file('%s/debug/clip.html' % cwd)
@@ -1352,8 +1361,6 @@ class S:
                             self.response = ('not found: %s' % self.path, 404)
                             return
                         self._set_end_headers(bytes(json.dumps(bridge_config[url_pices[3]][url_pices[4]],separators=(',', ':'),ensure_ascii=False), "utf8"))
-            elif (url_pices[2] == "nouser" or url_pices[2] == "none" or url_pices[2] == "config"): #used by applications to discover the bridge
-                self._set_end_headers(bytes(json.dumps({"name": bridge_config["config"]["name"],"datastoreversion": 70, "swversion": bridge_config["config"]["swversion"], "apiversion": bridge_config["config"]["apiversion"], "mac": bridge_config["config"]["mac"], "bridgeid": bridge_config["config"]["bridgeid"], "factorynew": False, "replacesbridgeid": None, "modelid": bridge_config["config"]["modelid"],"starterkitid":""},separators=(',', ':'),ensure_ascii=False), "utf8"))
             else: #user is not in whitelist
                 self._set_end_headers(bytes(json.dumps([{"error": {"type": 1, "address": self.path, "description": "unauthorized user" }}],separators=(',', ':'),ensure_ascii=False), "utf8"))
 
