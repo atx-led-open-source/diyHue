@@ -1155,7 +1155,7 @@ class S:
                 self._set_end_headers(bytes(webform_milight(), "utf8"))
         elif self.path.startswith("/hue"): #setup hue bridge
             if "linkbutton" in self.path: #Hub button emulated
-                if self.headers['Authorization'] == None:
+                if self.headers.get('Authorization') is None:
                     self._set_AUTHHEAD()
                     self._set_end_headers(bytes('You are not authenticated', "utf8"))
                     pass
@@ -1365,7 +1365,7 @@ class S:
                 self._set_end_headers(bytes(json.dumps([{"error": {"type": 1, "address": self.path, "description": "unauthorized user" }}],separators=(',', ':'),ensure_ascii=False), "utf8"))
 
     def read_http_request_body(self):
-        if self.headers.get('Content-Length') is None or self.headers['Content-Length'] == '0':
+        if self.headers.get('Content-Length') in (None, '0'):
             return b"{}" 
         return flask.request.get_data()
 
