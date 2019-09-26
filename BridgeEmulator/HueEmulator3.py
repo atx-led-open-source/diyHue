@@ -389,37 +389,48 @@ def generateSensorsState():
 
 def schedulerProcessor():
     while run_service:
-        for schedule in bridge_config["schedules"].keys():
+        for schedule_id, schedule in bridge_config["schedules"].items():
             try:
                 delay = 0
-                if bridge_config["schedules"][schedule]["status"] == "enabled":
-                    if bridge_config["schedules"][schedule]["localtime"][-9:-8] == "A":
-                        delay = random.randrange(0, int(bridge_config["schedules"][schedule]["localtime"][-8:-6]) * 3600 + int(bridge_config["schedules"][schedule]["localtime"][-5:-3]) * 60 + int(bridge_config["schedules"][schedule]["localtime"][-2:]))
-                        schedule_time = bridge_config["schedules"][schedule]["localtime"][:-9]
+                if schedule["status"] == "enabled":
+                    ltime = schedule["localtime"]
+                    if 'A' in ltime:
+                        index = ltime.index('A')
+                        [h, m, s] = [int(x) for x in ltime[index+1:].split(':')]
+                        delay = random.randrange(0, h * 3600 + m * 60 + s)
+                        schedule_time = ltime[:-9]
                     else:
-                        schedule_time = bridge_config["schedules"][schedule]["localtime"]
+                        schedule_time = ltime
+
+                    execute = False
                     if schedule_time.startswith("W"):
                         pices = schedule_time.split('/T')
                         if int(pices[0][1:]) & (1 << 6 - datetime.today().weekday()):
                             if pices[1] == datetime.now().strftime("%H:%M:%S"):
-                                logging.info("execute schedule: " + schedule + " withe delay " + str(delay))
-                                sendRequest(bridge_config["schedules"][schedule]["command"]["address"], bridge_config["schedules"][schedule]["command"]["method"], json.dumps(bridge_config["schedules"][schedule]["command"]["body"]), 1, delay)
+                                logging.info("execute schedule: " + schedule_id + " withe delay " + str(delay))
+                                execute = True
                     elif schedule_time.startswith("PT"):
-                        timmer = schedule_time[2:]
-                        (h, m, s) = timmer.split(':')
+                        timer = schedule_time[2:]
+                        (h, m, s) = timer.split(':')
                         d = timedelta(hours=int(h), minutes=int(m), seconds=int(s))
-                        if bridge_config["schedules"][schedule]["starttime"] == (datetime.utcnow() - d).strftime("%Y-%m-%dT%H:%M:%S"):
-                            logging.info("execute timmer: " + schedule + " withe delay " + str(delay))
-                            sendRequest(bridge_config["schedules"][schedule]["command"]["address"], bridge_config["schedules"][schedule]["command"]["method"], json.dumps(bridge_config["schedules"][schedule]["command"]["body"]), 1, delay)
-                            bridge_config["schedules"][schedule]["status"] = "disabled"
-                    else:
-                        if schedule_time == datetime.now().strftime("%Y-%m-%dT%H:%M:%S"):
-                            logging.info("execute schedule: " + schedule + " withe delay " + str(delay))
-                            sendRequest(bridge_config["schedules"][schedule]["command"]["address"], bridge_config["schedules"][schedule]["command"]["method"], json.dumps(bridge_config["schedules"][schedule]["command"]["body"]), 1, delay)
-                            if bridge_config["schedules"][schedule]["autodelete"]:
-                                del bridge_config["schedules"][schedule]
+                        if schedule["starttime"] == (datetime.utcnow() - d).strftime("%Y-%m-%dT%H:%M:%S"):
+                            logging.info("execute timer: " + schedule_id + " withe delay " + str(delay))
+                            execute = True
+                            schedule["status"] = "disabled"
+                    elif schedule_time == datetime.now().strftime("%Y-%m-%dT%H:%M:%S"):
+                        logging.info("execute schedule: " + schedule_id + " withe delay " + str(delay))
+                        execute = True
+                        if schedule["autodelete"]:
+                            del bridge_config["schedules"][schedule_id]
+
+                    if execute:
+                        sendRequest(schedule["command"]["address"],
+                                schedule["command"]["method"],
+                                json.dumps(schedule["command"]["body"]),
+                                1, delay)
+
             except Exception as e:
-                logging.info("Exception while processing the schedule " + schedule + " | " + str(e))
+                logging.info("Exception while processing the schedule " + schedule_id + " | " + str(e))
 
         if (datetime.now().strftime("%M:%S") == "00:10"): #auto save configuration every hour
             saveConfig()
@@ -500,21 +511,22 @@ def checkRuleConditions(rule, sensor, current_time, ignore_ddx=False):
             url_pices = condition["address"].split('/')
             if url_pices[1] == "sensors" and sensor == url_pices[2]:
                 sensor_found = True
+            value = bridge_config[url_pices[1]][url_pices[2]][url_pices[3]][url_pices[4]]
             if condition["operator"] == "eq":
                 if condition["value"] == "true":
-                    if not bridge_config[url_pices[1]][url_pices[2]][url_pices[3]][url_pices[4]]:
+                    if not value:
                         return [False, 0]
                 elif condition["value"] == "false":
-                    if bridge_config[url_pices[1]][url_pices[2]][url_pices[3]][url_pices[4]]:
+                    if value:
                         return [False, 0]
                 else:
-                    if not int(bridge_config[url_pices[1]][url_pices[2]][url_pices[3]][url_pices[4]]) == int(condition["value"]):
+                    if not int(value) == int(condition["value"]):
                         return [False, 0]
             elif condition["operator"] == "gt":
-                if not int(bridge_config[url_pices[1]][url_pices[2]][url_pices[3]][url_pices[4]]) > int(condition["value"]):
+                if not int(value) > int(condition["value"]):
                     return [False, 0]
             elif condition["operator"] == "lt":
-                if not int(bridge_config[url_pices[1]][url_pices[2]][url_pices[3]][url_pices[4]]) < int(condition["value"]):
+                if not int(value) < int(condition["value"]):
                     return [False, 0]
             elif condition["operator"] == "dx":
                 if not sensors_state[url_pices[2]][url_pices[3]][url_pices[4]] == current_time:
@@ -533,7 +545,7 @@ def checkRuleConditions(rule, sensor, current_time, ignore_ddx=False):
                             return [False, 0]
             elif condition["operator"] == "ddx" and ignore_ddx is False:
                 if not sensors_state[url_pices[2]][url_pices[3]][url_pices[4]] == current_time:
-                        return [False, 0]
+                    return [False, 0]
                 else:
                     ddx = int(condition["value"][2:4]) * 3600 + int(condition["value"][5:7]) * 60 + int(condition["value"][-2:])
                     ddx_sensor = url_pices
@@ -1693,7 +1705,7 @@ if __name__ == "__main__":
             Thread(target=updateAllLights).start()
         #Thread(target=ssdpSearch, args=[args.ip, mac]).start()
         #Thread(target=ssdpBroadcast, args=[args.ip, mac]).start()
-        #Thread(target=schedulerProcessor).start()
+        Thread(target=schedulerProcessor).start()
         Thread(target=syncWithLights, args=[bridge_config["lights"], bridge_config["lights_address"], bridge_config["config"]["whitelist"], bridge_config["groups"]]).start()
         #Thread(target=entertainmentService, args=[bridge_config["lights"], bridge_config["lights_address"], bridge_config["groups"]]).start()
         #Thread(target=run, args=[False]).start()
