@@ -1481,16 +1481,18 @@ class S:
                         put_dictionary.update({"starttime": (datetime.utcnow()).strftime("%Y-%m-%dT%H:%M:%S")})
                 elif url_pices[3] == "scenes":
                     if "storelightstate" in put_dictionary:
-                        for light in bridge_config["scenes"][url_pices[4]]["lightstates"]:
-                            bridge_config["scenes"][url_pices[4]]["lightstates"][light] = {}
-                            bridge_config["scenes"][url_pices[4]]["lightstates"][light]["on"] = bridge_config["lights"][light]["state"]["on"]
-                            bridge_config["scenes"][url_pices[4]]["lightstates"][light]["bri"] = bridge_config["lights"][light]["state"]["bri"]
-                            if "colormode" in bridge_config["lights"][light]["state"]:
-                                if bridge_config["lights"][light]["state"]["colormode"] in ["ct", "xy"]:
-                                    bridge_config["scenes"][url_pices[4]]["lightstates"][light][bridge_config["lights"][light]["state"]["colormode"]] = bridge_config["lights"][light]["state"][bridge_config["lights"][light]["state"]["colormode"]]
-                                elif bridge_config["lights"][light]["state"]["colormode"] == "hs" and "hue" in bridge_config["scenes"][url_pices[4]]["lightstates"][light]:
-                                    bridge_config["scenes"][url_pices[4]]["lightstates"][light]["hue"] = bridge_config["lights"][light]["state"]["hue"]
-                                    bridge_config["scenes"][url_pices[4]]["lightstates"][light]["sat"] = bridge_config["lights"][light]["state"]["sat"]
+                        scene_states = bridge_config["scenes"][url_pices[4]]["lightstates"]
+                        for light, state in scene_states.items():
+                            state = bridge_config["lights"][light]["state"]
+                            scene_states[light] = {}
+                            scene_states[light]["on"] = state["on"]
+                            scene_states[light]["bri"] = state["bri"]
+                            if "colormode" in state:
+                                if state["colormode"] in ["ct", "xy"]:
+                                    scene_states[light][state["colormode"]] = state[state["colormode"]]
+                                elif state["colormode"] == "hs" and "hue" in scene_states[light]:
+                                    scene_states[light]["hue"] = state["hue"]
+                                    scene_states[light]["sat"] = state["sat"]
                 if url_pices[3] == "sensors":
                     current_time = datetime.now()
                     for key, value in put_dictionary.items():
