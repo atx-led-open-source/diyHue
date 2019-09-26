@@ -289,7 +289,7 @@ def addTradfriDimmer(sensor_id, group_id):
     for rule in rules:
         ruleId = nextFreeId(bridge_config, "rules")
         bridge_config["rules"][ruleId] = rule
-        bridge_config["rules"][ruleId].update({"created": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"), "lasttriggered": None, "owner": list(bridge_config["config"]["whitelist"])[0], "recycle": True, "status": "enabled", "timestriggered": 0})
+        bridge_config["rules"][ruleId].update({"created": get_utc_timestamp(), "lasttriggered": None, "owner": list(bridge_config["config"]["whitelist"])[0], "recycle": True, "status": "enabled", "timestriggered": 0})
         bridge_config["resourcelinks"][resourcelinkId]["links"].append("/rules/" + ruleId)
 
 def addTradfriCtRemote(sensor_id, group_id):
@@ -299,7 +299,7 @@ def addTradfriCtRemote(sensor_id, group_id):
     for rule in rules:
         ruleId = nextFreeId(bridge_config, "rules")
         bridge_config["rules"][ruleId] = rule
-        bridge_config["rules"][ruleId].update({"created": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"), "lasttriggered": None, "owner": list(bridge_config["config"]["whitelist"])[0], "recycle": True, "status": "enabled", "timestriggered": 0})
+        bridge_config["rules"][ruleId].update({"created": get_utc_timestamp(), "lasttriggered": None, "owner": list(bridge_config["config"]["whitelist"])[0], "recycle": True, "status": "enabled", "timestriggered": 0})
         bridge_config["resourcelinks"][resourcelinkId]["links"].append("/rules/" + ruleId)
 
 def addTradfriSceneRemote(sensor_id, group_id):
@@ -309,7 +309,7 @@ def addTradfriSceneRemote(sensor_id, group_id):
     for rule in rules:
         ruleId = nextFreeId(bridge_config, "rules")
         bridge_config["rules"][ruleId] = rule
-        bridge_config["rules"][ruleId].update({"created": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"), "lasttriggered": None, "owner": list(bridge_config["config"]["whitelist"])[0], "recycle": True, "status": "enabled", "timestriggered": 0})
+        bridge_config["rules"][ruleId].update({"created": get_utc_timestamp(), "lasttriggered": None, "owner": list(bridge_config["config"]["whitelist"])[0], "recycle": True, "status": "enabled", "timestriggered": 0})
         bridge_config["resourcelinks"][resourcelinkId]["links"].append("/rules/" + ruleId)
 
 def addHueMotionSensor(uniqueid, name="Hue motion sensor"):
@@ -417,7 +417,7 @@ def schedulerProcessor():
                             logging.info("execute timer: " + schedule_id + " withe delay " + str(delay))
                             execute = True
                             schedule["status"] = "disabled"
-                    elif schedule_time == datetime.now().strftime("%Y-%m-%dT%H:%M:%S"):
+                    elif schedule_time == get_timestamp():
                         logging.info("execute schedule: " + schedule_id + " withe delay " + str(delay))
                         execute = True
                         if schedule["autodelete"]:
@@ -653,7 +653,7 @@ def motionDetected(sensor):
     while bridge_config["sensors"][sensor]["state"]["presence"] == True:
         if datetime.utcnow() - datetime.strptime(bridge_config["sensors"][sensor]["state"]["lastupdated"], "%Y-%m-%dT%H:%M:%S") > timedelta(seconds=30):
             bridge_config["sensors"][sensor]["state"]["presence"] = False
-            bridge_config["sensors"][sensor]["state"]["lastupdated"] =  datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+            bridge_config["sensors"][sensor]["state"]["lastupdated"] = get_utc_timestamp()
             current_time =  datetime.now()
             sensors_state[sensor]["state"]["presence"] = current_time
             rulesProcessor(sensor, current_time)
@@ -988,6 +988,12 @@ def groupZero(state):
             bridge_config["groups"][group]["state"]["all_on"] = state["on"]
 
 
+def get_timestamp():
+    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+def get_utc_timestamp():
+    return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+
 def daylightSensor():
     if bridge_config["sensors"]["1"]["modelid"] != "PHDL00" or not bridge_config["sensors"]["1"]["config"]["configured"]:
         return
@@ -1004,30 +1010,28 @@ def daylightSensor():
     deltaSunriseOffset = deltaSunrise.total_seconds() + bridge_config["sensors"]["1"]["config"]["sunriseoffset"] * 60
     logging.info("deltaSunsetOffset: " + str(deltaSunsetOffset))
     logging.info("deltaSunriseOffset: " + str(deltaSunriseOffset))
-    current_time =  datetime.now()
+    current_time = datetime.now()
+    current_time_str = get_timestamp()
     if deltaSunriseOffset < 0 and deltaSunsetOffset > 0:
-        bridge_config["sensors"]["1"]["state"] = {"daylight":True,"lastupdated": current_time.strftime("%Y-%m-%dT%H:%M:%S")}
+        bridge_config["sensors"]["1"]["state"] = {"daylight":True,"lastupdated": current_time_str}
         logging.info("set daylight sensor to true")
     else:
-        bridge_config["sensors"]["1"]["state"] = {"daylight":False,"lastupdated": current_time.strftime("%Y-%m-%dT%H:%M:%S")}
+        bridge_config["sensors"]["1"]["state"] = {"daylight":False,"lastupdated": current_time_str}
         logging.info("set daylight sensor to false")
     if deltaSunsetOffset > 0 and deltaSunsetOffset < 3600:
         logging.info("will start the sleep for sunset")
         sleep(deltaSunsetOffset)
-        logging.info("sleep finish at " + current_time.strftime("%Y-%m-%dT%H:%M:%S"))
-        bridge_config["sensors"]["1"]["state"] = {"daylight":False,"lastupdated": current_time.strftime("%Y-%m-%dT%H:%M:%S")}
+        logging.info("sleep finish at " + current_time_str)
+        bridge_config["sensors"]["1"]["state"] = {"daylight":False,"lastupdated": current_time_str}
         sensors_state["1"]["state"]["daylight"] = current_time
         rulesProcessor("1", current_time)
     if deltaSunriseOffset > 0 and deltaSunriseOffset < 3600:
         logging.info("will start the sleep for sunrise")
         sleep(deltaSunriseOffset)
-        logging.info("sleep finish at " + current_time.strftime("%Y-%m-%dT%H:%M:%S"))
-        bridge_config["sensors"]["1"]["state"] = {"daylight":True,"lastupdated": current_time.strftime("%Y-%m-%dT%H:%M:%S")}
+        logging.info("sleep finish at " + current_time_str)
+        bridge_config["sensors"]["1"]["state"] = {"daylight":True,"lastupdated": current_time_str}
         sensors_state["1"]["state"]["daylight"] = current_time
         rulesProcessor("1", current_time)
-
-def get_timestamp():
-    return datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 # Get query string as a dict. Ignores duplicate keys!
 def get_query_string():
@@ -1307,23 +1311,23 @@ class S:
                     if bridge_config["sensors"][sensorId]["config"]["on"]: #match senser id based on mac address
                         current_time = datetime.now()
                         if bridge_config["sensors"][sensorId]["type"] in ["ZLLSwitch","ZGPSwitch"]:
-                            bridge_config["sensors"][sensorId]["state"].update({"buttonevent": get_parameters["button"][0], "lastupdated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")})
+                            bridge_config["sensors"][sensorId]["state"].update({"buttonevent": get_parameters["button"][0], "lastupdated": get_utc_timestamp()})
                             sensors_state[sensorId]["state"]["lastupdated"] = current_time
                         elif bridge_config["sensors"][sensorId]["type"] == "ZLLPresence":
                             lightSensorId = bridge_config["emulator"]["sensors"][get_parameters["mac"][0]]["lightSensorId"]
                             if bridge_config["sensors"][sensorId]["state"]["presence"] != True:
                                 bridge_config["sensors"][sensorId]["state"]["presence"] = True
                                 sensors_state[sensorId]["state"]["presence"] = current_time
-                            bridge_config["sensors"][sensorId]["state"]["lastupdated"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+                            bridge_config["sensors"][sensorId]["state"]["lastupdated"] = get_utc_timestamp()
                             Thread(target=motionDetected, args=[sensorId]).start()
 
                             if "lightlevel" in get_parameters:
-                                bridge_config["sensors"][lightSensorId]["state"].update({"lightlevel": get_parameters["lightlevel"][0], "dark": get_parameters["dark"][0], "daylight": get_parameters["daylight"][0], "lastupdated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")})
+                                bridge_config["sensors"][lightSensorId]["state"].update({"lightlevel": get_parameters["lightlevel"][0], "dark": get_parameters["dark"][0], "daylight": get_parameters["daylight"][0], "lastupdated": get_utc_timestamp()})
                             else:
                                 if bridge_config["sensors"]["1"]["modelid"] == "PHDL00" and bridge_config["sensors"]["1"]["state"]["daylight"]:
-                                    bridge_config["sensors"][lightSensorId]["state"].update({"lightlevel": 25000, "dark": False, "daylight": True, "lastupdated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S") })
+                                    bridge_config["sensors"][lightSensorId]["state"].update({"lightlevel": 25000, "dark": False, "daylight": True, "lastupdated": get_utc_timestamp() })
                                 else:
-                                    bridge_config["sensors"][lightSensorId]["state"].update({"lightlevel": 6000, "dark": True, "daylight": False, "lastupdated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S") })
+                                    bridge_config["sensors"][lightSensorId]["state"].update({"lightlevel": 6000, "dark": True, "daylight": False, "lastupdated": get_utc_timestamp() })
 
                             #if alarm is activ trigger the alarm
                             if "virtual_light" in bridge_config["alarm_config"] and bridge_config["lights"][bridge_config["alarm_config"]["virtual_light"]]["state"]["on"] and bridge_config["sensors"][sensorId]["state"]["presence"] == True:
@@ -1344,9 +1348,9 @@ class S:
             else:
                 self._set_headers()
             if url_pices[2] in bridge_config["config"]["whitelist"]: #if username is in whitelist
-                bridge_config["config"]["UTC"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
-                bridge_config["config"]["localtime"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-                bridge_config["config"]["whitelist"][url_pices[2]]["last use date"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+                bridge_config["config"]["UTC"] = get_utc_timestamp()
+                bridge_config["config"]["localtime"] = get_timestamp()
+                bridge_config["config"]["whitelist"][url_pices[2]]["last use date"] = get_timestamp()
                 bridge_config["config"]["linkbutton"] = int(bridge_config["linkbutton"]["lastlinkbuttonpushed"]) + 30 >= int(datetime.now().strftime("%s"))
                 if len(url_pices) == 3: #print entire config
                     self._set_end_headers(bytes(json.dumps({"lights": bridge_config["lights"], "groups": bridge_config["groups"], "config": bridge_config["config"], "scenes": bridge_config["scenes"], "schedules": bridge_config["schedules"], "rules": bridge_config["rules"], "sensors": bridge_config["sensors"], "resourcelinks": bridge_config["resourcelinks"]},separators=(',', ':'),ensure_ascii=False), "utf8"))
@@ -1354,7 +1358,7 @@ class S:
                     self._set_end_headers(bytes(json.dumps(bridge_config[url_pices[3]],separators=(',', ':'),ensure_ascii=False), "utf8"))
                 elif (len(url_pices) == 5 or (len(url_pices) == 6 and url_pices[5] == 'state')):
                     if url_pices[4] == "new": #return new lights and sensors only
-                        new_lights.update({"lastscan": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")})
+                        new_lights.update({"lastscan": get_timestamp()})
                         self._set_end_headers(bytes(json.dumps(new_lights ,separators=(',', ':'),ensure_ascii=False), "utf8"))
                         new_lights.clear()
                     elif url_pices[3] == "groups" and url_pices[4] == "0":
@@ -1421,15 +1425,15 @@ class S:
                         post_dictionary.update({"action": {"on": False}, "state": {"any_on": False, "all_on": False}})
                     elif url_pices[3] == "schedules":
                         try:
-                            post_dictionary.update({"created": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"), "time": post_dictionary["localtime"]})
+                            post_dictionary.update({"created": get_utc_timestamp(), "time": post_dictionary["localtime"]})
                         except KeyError:
-                            post_dictionary.update({"created": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"), "localtime": post_dictionary["time"]})
+                            post_dictionary.update({"created": get_utc_timestamp(), "localtime": post_dictionary["time"]})
                         if post_dictionary["localtime"].startswith("PT"):
-                            post_dictionary.update({"starttime": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")})
+                            post_dictionary.update({"starttime": get_utc_timestamp()})
                         if not "status" in post_dictionary:
                             post_dictionary.update({"status": "enabled"})
                     elif url_pices[3] == "rules":
-                        post_dictionary.update({"owner": url_pices[2], "lasttriggered" : "none", "created": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"), "timestriggered": 0})
+                        post_dictionary.update({"owner": url_pices[2], "lasttriggered" : "none", "created": get_utc_timestamp(), "timestriggered": 0})
                         if not "status" in post_dictionary:
                             post_dictionary.update({"status": "enabled"})
                     elif url_pices[3] == "sensors":
@@ -1438,7 +1442,7 @@ class S:
                         if post_dictionary["modelid"] == "PHWA01":
                             post_dictionary.update({"state": {"status": 0}})
                         elif post_dictionary["modelid"] == "PHA_CTRL_START":
-                            post_dictionary.update({"state": {"flag": False, "lastupdated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")}, "config": {"on": True,"reachable": True}})
+                            post_dictionary.update({"state": {"flag": False, "lastupdated": get_utc_timestamp()}, "config": {"on": True,"reachable": True}})
                     elif url_pices[3] == "resourcelinks":
                         post_dictionary.update({"owner" :url_pices[2]})
                     generateSensorsState()
@@ -1453,7 +1457,7 @@ class S:
             if (args.no_link_button or last_button_press+30 >= int(datetime.now().strftime("%s")) or
                     bridge_config["config"]["linkbutton"]):
                 username = hashlib.new('ripemd160', post_dictionary["devicetype"][0].encode('utf-8')).hexdigest()[:32]
-                bridge_config["config"]["whitelist"][username] = {"last use date": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),"create date": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),"name": post_dictionary["devicetype"]}
+                bridge_config["config"]["whitelist"][username] = {"last use date": get_utc_timestamp(),"create date": get_utc_timestamp(),"name": post_dictionary["devicetype"]}
                 response = [{"success": {"username": username}}]
                 if "generateclientkey" in post_dictionary and post_dictionary["generateclientkey"]:
                     response[0]["success"]["clientkey"] = "321c0c2ebfa7361e55491095b2f5f9db"
