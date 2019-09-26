@@ -595,8 +595,8 @@ def find_light_in_config_from_uid(bridge_config, unique_id):
     return None
 
 def scan_for_lights(): #scan for ESP8266 lights and strips
-    Thread(target=yeelight.discover, args=[bridge_config, new_lights]).start()
-    Thread(target=tasmota.discover, args=[bridge_config, new_lights]).start()
+    #Thread(target=yeelight.discover, args=[bridge_config, new_lights]).start()
+    #Thread(target=tasmota.discover, args=[bridge_config, new_lights]).start()
 
     for protocol in [native_single]:
         for light, light_address in protocol.discover(args):
@@ -619,8 +619,8 @@ def scan_for_lights(): #scan for ESP8266 lights and strips
                 bridge_config["lights_address"][new_light_id] = light_address
                 new_lights.update({new_light_id: {"name": light_name}})
 
-    scanDeconz()
-    scanTradfri()
+    #scanDeconz()
+    #scanTradfri()
     saveConfig()
 
 
