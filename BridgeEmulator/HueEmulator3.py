@@ -1069,6 +1069,7 @@ def get_config_js(path='index.html', ext=''):
 
     return (resp.encode('utf-8'), headers)
 
+@app.route('/api/config')
 @app.route('/api/nouser/config')
 def get_nouser_config():
     keys = ['apiversion', 'bridgeid', 'datastoreversion', 'mac',
